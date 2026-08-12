@@ -25,6 +25,9 @@
 :root {
   --brand: #4f46e5;
   --brand-hover: #4338ca;
+  --theme-bg-light: #f8fafc;
+  --theme-bg-dark: #0f172a;
+  --theme-accent-soft: #c7d2fe;
 }
 
 html[data-theme='indigo'] { --brand: #4f46e5; --brand-hover: #4338ca; }
@@ -61,6 +64,51 @@ html[data-theme='amber'] { --brand: #d97706; --brand-hover: #b45309; }
   --tw-ring-color: var(--brand);
   outline: none;
   box-shadow: 0 0 0 2px var(--brand);
+}
+
+/* Full-page palette treatment */
+body {
+  background-color: var(--theme-bg-light);
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+.dark body {
+  background-color: var(--theme-bg-dark);
+}
+
+.theme-page {
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--brand) 15%, transparent) 0, transparent 30rem),
+    radial-gradient(circle at 94% 12%, color-mix(in srgb, var(--theme-accent-soft) 32%, transparent) 0, transparent 34rem),
+    linear-gradient(145deg, var(--theme-bg-light), color-mix(in srgb, var(--theme-bg-light) 74%, white));
+  transition: background 240ms ease, color 220ms ease;
+}
+
+.dark .theme-page {
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--brand) 20%, transparent) 0, transparent 32rem),
+    radial-gradient(circle at 94% 12%, color-mix(in srgb, var(--theme-accent-soft) 10%, transparent) 0, transparent 36rem),
+    linear-gradient(145deg, var(--theme-bg-dark), color-mix(in srgb, var(--theme-bg-dark) 82%, #020617));
+}
+
+.theme-header {
+  background-color: color-mix(in srgb, var(--theme-bg-light) 58%, white 42%);
+  border-color: color-mix(in srgb, var(--brand) 18%, #e2e8f0);
+}
+
+.dark .theme-header {
+  background-color: color-mix(in srgb, var(--theme-bg-dark) 78%, #0f172a 22%);
+  border-color: color-mix(in srgb, var(--brand) 30%, #1e293b);
+}
+
+.theme-surface {
+  background-color: color-mix(in srgb, white 94%, var(--theme-accent-soft) 6%);
+  border-color: color-mix(in srgb, #e2e8f0 78%, var(--brand) 22%);
+}
+
+.dark .theme-surface {
+  background-color: color-mix(in srgb, #0f172a 94%, var(--brand) 6%);
+  border-color: color-mix(in srgb, #1e293b 74%, var(--brand) 26%);
 }
 
 html {

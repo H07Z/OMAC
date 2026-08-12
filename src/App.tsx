@@ -477,7 +477,7 @@ export default function App() {
   /* ═══════════════════════════════════════════════════════ */
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-zinc-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100 flex flex-col transition-colors w-full max-w-full overflow-x-hidden">
+    <div className="theme-page min-h-screen text-slate-800 dark:text-slate-100 flex flex-col transition-colors w-full max-w-full overflow-x-hidden">
       <HeaderNav
         currentPage={page}
         onNavigate={(p) => setPage(p)}
@@ -1057,15 +1057,13 @@ export default function App() {
       </div>
 
       {/* ─── FOOTER ──────────────────────────────────────── */}
-      {page === 'processor' && (
-        <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 mt-auto transition-colors">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-3">
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
-              EZ Web Toolkit · Session preserved &middot; (NET)/(SUBNET) removal &middot; Numeric sort &amp; gap-fill &middot; "R " prefix on single column
-            </p>
-          </div>
-        </footer>
-      )}
+      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 mt-auto transition-colors z-20">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center font-medium tracking-wide">
+            EZ Web Toolkit &middot; A professional-grade web application that replaces Excel/VBA workflows for data processing
+          </p>
+        </div>
+      </footer>
 
       {/* Debug panel */}
       {showDebug && (

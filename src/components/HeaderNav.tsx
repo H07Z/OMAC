@@ -20,11 +20,11 @@ export default function HeaderNav({
   const [showThemePicker, setShowThemePicker] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xs transition-colors">
+    <header className="theme-header sticky top-0 z-30 border-b backdrop-blur-md shadow-xs transition-colors">
       <div className="mx-auto flex max-w-[1400px] w-full items-center justify-between px-4 py-2.5 sm:px-6 lg:px-8">
         {/* Left: Brand with E# logo */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 dark:from-indigo-500 dark:to-violet-500 flex items-center justify-center text-white font-extrabold text-base tracking-tighter shadow-md shadow-indigo-500/20 select-none">
+          <div className="w-10 h-10 rounded-2xl btn-brand flex items-center justify-center text-white font-extrabold text-base tracking-tighter shadow-md select-none">
             E#
           </div>
           <div>
@@ -38,7 +38,7 @@ export default function HeaderNav({
         </div>
 
         {/* Center: Uiverse thin-owl-11 style segmented pill navigation */}
-        <div className="hidden sm:flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-full border border-slate-200/80 dark:border-slate-700/80 shadow-inner gap-1">
+        <div className="theme-surface hidden sm:flex items-center p-1 rounded-full border shadow-inner gap-1">
           {/* Page 1: OE Entries */}
           <button
             type="button"
@@ -52,7 +52,7 @@ export default function HeaderNav({
             <span
               className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 currentPage === 'processor'
-                  ? 'bg-indigo-600 text-white'
+                  ? 'btn-brand'
                   : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
               }`}
             >
@@ -74,7 +74,7 @@ export default function HeaderNav({
             <span
               className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 currentPage === 'templateAppend'
-                  ? 'bg-teal-600 text-white'
+                  ? 'btn-brand'
                   : 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300'
               }`}
             >
@@ -96,7 +96,7 @@ export default function HeaderNav({
             <span
               className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 currentPage === 'summaryFiller'
-                  ? 'bg-emerald-600 text-white'
+                  ? 'btn-brand'
                   : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
               }`}
             >

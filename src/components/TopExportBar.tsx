@@ -8,7 +8,7 @@ interface TopExportBarProps {
 
 export default function TopExportBar({ children, title, badge }: TopExportBarProps) {
   return (
-    <div className="w-full mb-5 p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors">
+    <div className="theme-surface w-full mb-5 p-3.5 rounded-2xl border shadow-sm transition-colors">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-xl bg-brand-50 text-brand border border-brand-200 flex items-center justify-center shrink-0">

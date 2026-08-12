@@ -200,7 +200,7 @@ export default function SummaryTableFillerPage({ onNavigate, showDebug, onToggle
   }, [filledWb, templateFile]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-zinc-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100 flex flex-col transition-colors w-full max-w-full overflow-x-hidden">
+    <div className="theme-page min-h-screen text-slate-800 dark:text-slate-100 flex flex-col transition-colors w-full max-w-full overflow-x-hidden">
       {!hideHeader && (
         <HeaderNav
           currentPage="summaryFiller"

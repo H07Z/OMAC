@@ -151,6 +151,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.style.setProperty('--brand-500', palette.primaryHex);
     root.style.setProperty('--brand-600', palette.primaryHoverHex || palette.primaryHex);
     root.style.setProperty('--brand-700', palette.primaryHoverHex);
+    root.style.setProperty('--theme-bg-light', palette.bgHexLight);
+    root.style.setProperty('--theme-bg-dark', palette.bgHexDark);
+    root.style.setProperty('--theme-accent-soft', palette.swatches[2]);
     root.setAttribute('data-theme', palette.id);
   }, [paletteId, palette]);
 
