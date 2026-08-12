@@ -498,7 +498,7 @@ export default function App() {
                   onClick={() => handleSheetChange(sheet.name)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                     isActive
-                      ? 'bg-indigo-600 text-white shadow-sm'
+                      ? 'btn-brand focus-ring-brand shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
@@ -524,7 +524,7 @@ export default function App() {
               disabled={!allProcessed}
               className={`flex-1 min-w-[155px] h-9 px-3 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 ${
                 allProcessed
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-500/20'
+                  ? 'btn-brand focus-ring-brand'
                   : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
               }`}
             >
@@ -661,7 +661,7 @@ export default function App() {
                             ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-wait'
                             : allProcessed
                             ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-500/20'
+                            : 'btn-brand focus-ring-brand shadow-sm'
                         }`}
                       >
                         {state.isProcessing

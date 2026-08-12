@@ -177,9 +177,9 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
             type="button"
             onClick={() => result && exportAppendResult(result, sourceFileName)}
             disabled={!result}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 ${
+            className={`flex-1 min-w-[155px] h-9 px-3 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 ${
               result
-                ? 'bg-teal-600 text-white hover:bg-teal-700 shadow-teal-500/20'
+                ? 'btn-brand focus-ring-brand'
                 : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
             }`}
           >
@@ -251,7 +251,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                 type="button"
                 onClick={handleProcess}
                 disabled={isProcessing}
-                className="w-full rounded-xl bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-teal-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 transition-colors"
+                className="w-full rounded-xl px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors btn-brand focus-ring-brand disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400"
               >
                 {isProcessing ? 'Processing...' : '▶ Generate OUTPUT'}
               </button>

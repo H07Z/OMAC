@@ -217,9 +217,9 @@ export default function SummaryTableFillerPage({ onNavigate, showDebug, onToggle
             type="button"
             onClick={handleDownload}
             disabled={!filledWb}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 ${
+            className={`flex-1 min-w-[155px] h-9 px-3 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 ${
               filledWb
-                ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20'
+                ? 'btn-brand focus-ring-brand'
                 : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
             }`}
           >
@@ -270,7 +270,7 @@ export default function SummaryTableFillerPage({ onNavigate, showDebug, onToggle
               type="button"
               onClick={processAndFill}
               disabled={isProcessing || !sourceWb || !templateWb}
-              className="w-full py-3 rounded-xl font-bold text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 transition-colors shadow-sm flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl font-bold text-sm btn-brand focus-ring-brand disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 transition-colors shadow-sm flex items-center justify-center gap-2"
             >
               {isProcessing ? (
                 <>

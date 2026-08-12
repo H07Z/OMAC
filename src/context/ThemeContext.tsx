@@ -149,8 +149,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.style.setProperty('--primary-color', palette.primaryHex);
     root.style.setProperty('--brand-500', palette.primaryHex);
-    root.style.setProperty('--brand-600', palette.primaryHex);
+    root.style.setProperty('--brand-600', palette.primaryHoverHex || palette.primaryHex);
     root.style.setProperty('--brand-700', palette.primaryHoverHex);
+    root.setAttribute('data-theme', palette.id);
   }, [paletteId, palette]);
 
   const toggleMode = () => {
