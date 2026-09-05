@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, Fragment } from 'react';
 import { RowData, LogEntry, FilterConfig, ProcessingStats, SortConfig } from './types';
 import { debugLog, getDebugLogs } from './utils/debug';
-import { readWorkbook, readCSV, loadSheet, getFileType } from './modules/excelLoader';
+import { readWorkbook, readCSV, loadOeSheet, getFileType } from './modules/excelLoader';
 import { processData, autoDetectColumns, ProcessingConfig } from './modules/dataProcessor';
 import { FORMAT_TEMPLATES, buildFormattedString } from './modules/formatTemplates';
 import { validateFile } from './modules/validator';
@@ -52,6 +52,8 @@ const ChevronIcon = ({ direction }: { direction: 'asc' | 'desc' | 'none' }) => (
 
 interface SheetState {
   name: string;
+  questionCode: string;
+  questionLabel: string;
   allHeaders: string[];
   outputHeaders: string[];
   originalData: RowData[];
@@ -92,7 +94,7 @@ const initialState: AppState = {
 type FormatInputMap = Record<string, Record<string, string[]>>;
 
 function buildSheetState(workbook: XLSX.WorkBook, name: string): SheetState {
-  const sd = loadSheet(workbook, name);
+  const sd = loadOeSheet(workbook, name);
   const config = autoDetectColumns(sd.headers);
   const outHeaders = sd.headers.filter(h => !config.excludedColumns.includes(h));
   const initFilters: FilterConfig = {};
@@ -100,6 +102,8 @@ function buildSheetState(workbook: XLSX.WorkBook, name: string): SheetState {
 
   return {
     name,
+    questionCode: sd.questionCode,
+    questionLabel: sd.questionLabel,
     allHeaders: sd.headers,
     outputHeaders: outHeaders,
     originalData: sd.data,
@@ -112,18 +116,73 @@ function buildSheetState(workbook: XLSX.WorkBook, name: string): SheetState {
   };
 }
 
-function initialFormatInputs(sheetName: string): Record<string, string[]> {
-  const qMatch = sheetName.match(/^Q\d+/i);
+function buildQuestionLabel(questionCode: string, questionLabel: string): string {
+  const code = questionCode.trim().replace(/[.\s]+$/, '');
+  const label = questionLabel.trim();
+  if (!code) return label;
+  if (!label) return code;
+  if (label.toUpperCase().startsWith(code.toUpperCase())) return label;
+  return `${code}. ${label}`;
+}
+
+function initialFormatInputs(
+  sheetName: string,
+  questionCode = '',
+  questionLabel = '',
+  questionIndex = 1,
+  highestCodeLength = 1,
+): Record<string, string[]> {
+  const qMatch = (questionCode || sheetName).match(/Q\d+(\.\d+)?/i);
+  const code = qMatch ? qMatch[0].toUpperCase() : questionCode.trim();
+  const safeCodeLength = Math.max(1, highestCodeLength);
   return {
-    'q-pattern': [qMatch ? qMatch[0].toUpperCase() : '', ''],
-    'l-pattern': ['', '', ''],
+    'q-pattern': [code, buildQuestionLabel(code, questionLabel)],
+    // Workbook tab 1 -> L 1L{code length}R{matching count of 9s};
+    // tab 2 -> L 2L...; and so on.
+    'l-pattern': [
+      String(Math.max(1, questionIndex)),
+      String(safeCodeLength),
+      '9'.repeat(safeCodeLength),
+    ],
   };
 }
 
-function initialQpsConfig(sheetName: string): QpsConfig {
-  const variableName = sheetName.trim();
-  const questions = variableName.replace(/^V/i, '');
-  return { variableName, questions, questionLabel: '', tableType: 'M' };
+/** Return the digit length of the highest numeric code in Column A. */
+function getHighestCodeLength(sheet: SheetState): number {
+  let highestNumber = Number.NEGATIVE_INFINITY;
+  let highestRaw = '';
+
+  for (const row of sheet.originalData) {
+    const raw = String(row[sheet.columnConfig.columnAKey] ?? '').trim();
+    if (!/^-?\d+(?:\.\d+)?$/.test(raw)) continue;
+
+    const numeric = Number(raw);
+    if (numeric > highestNumber) {
+      highestNumber = numeric;
+      highestRaw = raw;
+    }
+  }
+
+  if (!highestRaw) return 1;
+  const integerDigits = highestRaw.replace(/^-/, '').split('.')[0].length;
+  return Math.max(1, integerDigits);
+}
+
+function initialQpsConfig(
+  sheetName: string,
+  questionCode = '',
+  questionLabel = '',
+): QpsConfig {
+  const question = (questionCode || sheetName).trim().replace(/^V/i, '');
+  const variableName = `V${question}`;
+  // Questions must use Excel row 1, Column A (for example Q17).
+  const questions = (questionCode || question).trim();
+  return {
+    variableName,
+    questions,
+    questionLabel: buildQuestionLabel(questionCode || question, questionLabel),
+    tableType: 'M',
+  };
 }
 
 const PAGE_SIZE = 100;
@@ -242,7 +301,8 @@ export default function App() {
 
   const qpsPreview = useMemo(() => {
     if (!activeSheet) return { lines: [], hiddenCount: 0 };
-    const cfg = qpsConfigs[activeSheet.name] ?? initialQpsConfig(activeSheet.name);
+    const cfg = qpsConfigs[activeSheet.name]
+      ?? initialQpsConfig(activeSheet.name, activeSheet.questionCode, activeSheet.questionLabel);
     return buildQpsPreview(activeSheet.originalData, activeSheet.columnConfig.columnAKey, activeSheet.columnConfig.columnBKey, cfg, 40);
   }, [activeSheet, qpsConfigs]);
 
@@ -268,9 +328,15 @@ export default function App() {
       const newQpsConfigs: Record<string, QpsConfig> = {};
       const newOpenQps: Record<string, boolean> = {};
       sheets.forEach((s, i) => {
-        newFormatInputs[s.name] = initialFormatInputs(s.name);
+        newFormatInputs[s.name] = initialFormatInputs(
+          s.name,
+          s.questionCode,
+          s.questionLabel,
+          i + 1,
+          getHighestCodeLength(s),
+        );
         newOpenFormats[s.name] = i === 0;
-        newQpsConfigs[s.name] = initialQpsConfig(s.name);
+        newQpsConfigs[s.name] = initialQpsConfig(s.name, s.questionCode, s.questionLabel);
         newOpenQps[s.name] = i === 0;
       });
       setFormatInputs(newFormatInputs);
@@ -446,11 +512,22 @@ export default function App() {
   }, []);
 
   const setQpsField = useCallback((sheetName: string, field: keyof QpsConfig, value: string) => {
+    const sheet = state.sheets.find(item => item.name === sheetName);
+    const normalizedValue = field === 'variableName'
+      ? `V${value.trim().replace(/^V/i, '')}`
+      : value;
     setQpsConfigs(prev => ({
       ...prev,
-      [sheetName]: { ...(prev[sheetName] ?? initialQpsConfig(sheetName)), [field]: value },
+      [sheetName]: {
+        ...(prev[sheetName] ?? initialQpsConfig(
+          sheetName,
+          sheet?.questionCode,
+          sheet?.questionLabel,
+        )),
+        [field]: normalizedValue,
+      },
     }));
-  }, []);
+  }, [state.sheets]);
 
   const buildQpsSpecs = useCallback(() => {
     return state.sheets.map(sheet => ({
@@ -458,7 +535,8 @@ export default function App() {
       data: sheet.originalData,
       codeKey: sheet.columnConfig.columnAKey,
       labelKey: sheet.columnConfig.columnBKey,
-      config: qpsConfigs[sheet.name] ?? initialQpsConfig(sheet.name),
+      config: qpsConfigs[sheet.name]
+        ?? initialQpsConfig(sheet.name, sheet.questionCode, sheet.questionLabel),
     }));
   }, [state.sheets, qpsConfigs]);
 
@@ -615,6 +693,19 @@ export default function App() {
                         </div>
                       </div>
 
+                      {activeSheet && (
+                        <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-brand">Auto-derived from Excel row 1</p>
+                          <p className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-200">
+                            A1: {activeSheet.questionCode || '(blank)'}
+                          </p>
+                          <p className="text-xs font-mono text-slate-700 dark:text-slate-200">
+                            B1: {activeSheet.questionLabel || '(blank)'}
+                          </p>
+                          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Code/label records begin at Excel row 3.</p>
+                        </div>
+                      )}
+
                       {/* Column Config */}
                       {activeSheet && (
                         <div>
@@ -750,12 +841,13 @@ export default function App() {
                 <section className="bg-gradient-to-br from-teal-50/70 to-cyan-50/70 dark:from-teal-950/30 dark:to-cyan-950/30 rounded-2xl border border-teal-100 dark:border-teal-900/50 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 border-b border-teal-100 dark:border-teal-900/50">
                     <h2 className="text-sm font-bold text-teal-900 dark:text-teal-300">QPS Script Builder</h2>
-                    <p className="text-[10px] text-teal-600 dark:text-teal-400">Netting output (V B / V […] / T M + R/Y). Uses original codes.</p>
+                    <p className="text-[10px] text-teal-600 dark:text-teal-400">Netting output (V B / V […] / T M + R/Y + O R/O E). Uses original codes.</p>
                   </div>
                   <div className="p-3 space-y-2">
                     {state.sheets.map(sheet => {
                       const isOpen = !!openQps[sheet.name];
-                      const cfg = qpsConfigs[sheet.name] ?? initialQpsConfig(sheet.name);
+                      const cfg = qpsConfigs[sheet.name]
+                        ?? initialQpsConfig(sheet.name, sheet.questionCode, sheet.questionLabel);
                       return (
                         <div key={sheet.name} className="bg-white dark:bg-slate-900 rounded-xl border border-teal-100 dark:border-teal-900/40 shadow-sm overflow-hidden">
                           <button

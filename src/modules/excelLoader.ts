@@ -19,6 +19,11 @@ export interface SheetData {
   data: RowData[];
 }
 
+export interface OeSheetData extends SheetData {
+  questionCode: string;
+  questionLabel: string;
+}
+
 /**
  * Read a File object as an Excel workbook
  */
@@ -130,6 +135,60 @@ export function loadSheet(workbook: XLSX.WorkBook, sheetName: string): SheetData
     headers,
     data: jsonData
   };
+}
+
+/**
+ * Load an OE Entries worksheet using the new fixed source layout:
+ *
+ *   Row 1, Column A = question code (for example Q17)
+ *   Row 1, Column B = question label (for example SPONTANEOUS LIKES)
+ *   Row 2           = reserved / ignored
+ *   Row 3 onward    = code and label records used by the processors
+ *
+ * Generated field names preserve positional Excel semantics (Column A,
+ * Column B, Column C...) while row 1 remains available as metadata.
+ */
+export function loadOeSheet(workbook: XLSX.WorkBook, sheetName: string): OeSheetData {
+  debugLog('ExcelLoader', `Loading OE sheet from row 3: "${sheetName}"`);
+
+  const worksheet = workbook.Sheets[sheetName];
+  if (!worksheet) throw new Error(`Worksheet "${sheetName}" not found`);
+
+  const matrix = XLSX.utils.sheet_to_json<Array<string | number | null>>(worksheet, {
+    header: 1,
+    defval: null,
+    raw: false,
+    blankrows: true,
+  });
+
+  const metadataRow = matrix[0] ?? [];
+  const questionCode = String(metadataRow[0] ?? '').trim();
+  const questionLabel = String(metadataRow[1] ?? '').trim();
+  const recordRows = matrix.slice(2); // Excel row 3 onward
+
+  const width = Math.max(
+    2,
+    ...recordRows.map(row => row.length),
+  );
+  const headers = Array.from({ length: width }, (_, index) => `Column ${XLSX.utils.encode_col(index)}`);
+
+  const data = recordRows
+    .filter(row => row.some(value => value !== null && String(value).trim() !== ''))
+    .map(row => {
+      const record: RowData = {};
+      headers.forEach((header, index) => {
+        const value = row[index];
+        record[header] = value === undefined ? null : value;
+      });
+      return record;
+    });
+
+  debugLog(
+    'ExcelLoader',
+    `OE sheet loaded: question="${questionCode}", label="${questionLabel}", records=${data.length}`,
+  );
+
+  return { headers, data, questionCode, questionLabel };
 }
 
 /**

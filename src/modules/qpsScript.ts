@@ -56,6 +56,7 @@ export type QpsLineKind =
   | 'title' | 'begin' | 'variable' | 'table'
   | 'net-label' | 'net-script'
   | 'code-label' | 'code-script'
+  | 'option-open' | 'option-end'
   | 'plain' | 'end' | 'terminator';
 
 export interface QpsLine {
@@ -146,6 +147,64 @@ function buildRangesForMarker(
   return ranges;
 }
 
+interface OptionBoundary {
+  rowIndex: number;
+  level: number;
+}
+
+/**
+ * Find the first and last code beneath every hierarchy marker.
+ * A hierarchy block ends at END or at the next marker of the same or a
+ * higher hierarchy level. The QPS output adds O R after the first code and
+ * O E after the last code, matching the supplied expected output.
+ */
+function buildOptionBoundaries(
+  rows: RowData[],
+  codeKey: string,
+  labelKey: string,
+): { opens: Map<number, OptionBoundary[]>; closes: Map<number, OptionBoundary[]> } {
+  const opens = new Map<number, OptionBoundary[]>();
+  const closes = new Map<number, OptionBoundary[]>();
+
+  const add = (map: Map<number, OptionBoundary[]>, boundary: OptionBoundary) => {
+    map.set(boundary.rowIndex, [...(map.get(boundary.rowIndex) ?? []), boundary]);
+  };
+
+  for (let i = 0; i < rows.length; i++) {
+    const level = detectLevel(String(rows[i][labelKey] ?? '').toUpperCase());
+    if (level === 0) continue;
+
+    let firstCode = -1;
+    let lastCode = -1;
+
+    for (let x = i + 1; x < rows.length; x++) {
+      const labelUpper = String(rows[x][labelKey] ?? '').trim().toUpperCase();
+      if (labelUpper === 'END') break;
+
+      const nextLevel = detectLevel(labelUpper);
+      if (nextLevel > 0 && nextLevel <= level) break;
+
+      const code = String(rows[x][codeKey] ?? '').trim();
+      if (code !== '') {
+        if (firstCode === -1) firstCode = x;
+        lastCode = x;
+      }
+    }
+
+    if (firstCode !== -1 && lastCode !== -1) {
+      add(opens, { rowIndex: firstCode, level });
+      add(closes, { rowIndex: lastCode, level });
+    }
+  }
+
+  // At a shared first row, open outer scopes before inner scopes. At a shared
+  // last row, close inner scopes before outer scopes.
+  for (const values of opens.values()) values.sort((a, b) => a.level - b.level);
+  for (const values of closes.values()) values.sort((a, b) => b.level - a.level);
+
+  return { opens, closes };
+}
+
 /* ─── Line generation ────────────────────── */
 
 /** Split & clean the comma-separated question list */
@@ -171,6 +230,7 @@ export function generateQpsLines(
 
   const questions = parseQuestions(config.questions);
   const lines: QpsLine[] = [];
+  const optionBoundaries = buildOptionBoundaries(data, codeKey, labelKey);
 
   // Header block
   lines.push({ text: 'V B', kind: 'begin' });
@@ -198,6 +258,14 @@ export function generateQpsLines(
       lines.push({ text: `R ${label}`, kind: 'code-label' });
       const parts = questions.map(q => `$${q}/${codeStr}`);
       lines.push({ text: `Y ${parts.join('+')}`.trimEnd(), kind: 'code-script' });
+
+      // Add the option boundaries directly below the first/last code scripts.
+      for (const _boundary of optionBoundaries.opens.get(i) ?? []) {
+        lines.push({ text: 'O R', kind: 'option-open' });
+      }
+      for (const _boundary of optionBoundaries.closes.get(i) ?? []) {
+        lines.push({ text: 'O E', kind: 'option-end' });
+      }
     } else {
       // Label-only row (no code, not a marker) → R only
       lines.push({ text: `R ${label}`, kind: 'plain' });
