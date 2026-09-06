@@ -43,11 +43,11 @@ export const FORMAT_TEMPLATES: FormatTemplate[] = [
   {
     id: 'l-pattern',
     name: 'L-Pattern (Row 5 style)',
-    description: 'Used for numeric ID rows like: L 1066L3R999',
+    description: 'Used for numeric ID rows like: L 1L3R999',
     templateString: 'L {{1}}L{{2}}R{{3}}',
     inputCount: 3,
-    exampleInputs: ['1066', '3', '999'],
-    formatDescription: 'Inputs: "1066" + "3" + "999" → "L 1066L3R999"',
+    exampleInputs: ['1', '3', '999'],
+    formatDescription: 'Inputs: "1" + "3" + "999" → "L 1L3R999"',
   },
 ];
 

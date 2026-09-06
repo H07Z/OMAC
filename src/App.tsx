@@ -130,42 +130,32 @@ function initialFormatInputs(
   questionCode = '',
   questionLabel = '',
   questionIndex = 1,
-  highestCodeLength = 1,
+  data: RowData[] = [],
+  codeKey = 'Column A',
 ): Record<string, string[]> {
   const qMatch = (questionCode || sheetName).match(/Q\d+(\.\d+)?/i);
-  const code = qMatch ? qMatch[0].toUpperCase() : questionCode.trim();
-  const safeCodeLength = Math.max(1, highestCodeLength);
-  return {
-    'q-pattern': [code, buildQuestionLabel(code, questionLabel)],
-    // Workbook tab 1 -> L 1L{code length}R{matching count of 9s};
-    // tab 2 -> L 2L...; and so on.
-    'l-pattern': [
-      String(Math.max(1, questionIndex)),
-      String(safeCodeLength),
-      '9'.repeat(safeCodeLength),
-    ],
-  };
-}
+  const code = qMatch ? qMatch[0].toUpperCase() : (questionCode || sheetName).trim();
 
-/** Return the digit length of the highest numeric code in Column A. */
-function getHighestCodeLength(sheet: SheetState): number {
-  let highestNumber = Number.NEGATIVE_INFINITY;
-  let highestRaw = '';
-
-  for (const row of sheet.originalData) {
-    const raw = String(row[sheet.columnConfig.columnAKey] ?? '').trim();
-    if (!/^-?\d+(?:\.\d+)?$/.test(raw)) continue;
-
-    const numeric = Number(raw);
-    if (numeric > highestNumber) {
-      highestNumber = numeric;
-      highestRaw = raw;
+  // Find the highest numeric code in Column A to determine digit length
+  let maxCode = 0;
+  for (const row of data) {
+    const val = row[codeKey] ?? (row ? Object.values(row)[0] : null);
+    if (val !== null && val !== undefined) {
+      const num = parseInt(String(val).replace(/[^\d-]/g, ''), 10);
+      if (!isNaN(num) && num > maxCode) {
+        maxCode = num;
+      }
     }
   }
 
-  if (!highestRaw) return 1;
-  const integerDigits = highestRaw.replace(/^-/, '').split('.')[0].length;
-  return Math.max(1, integerDigits);
+  // Calculate length of the highest code (e.g. 22 -> 2, 999 -> 3, 1000 -> 4)
+  const codeLength = maxCode > 0 ? String(maxCode).length : 3;
+  const nines = '9'.repeat(codeLength);
+
+  return {
+    'q-pattern': [code, buildQuestionLabel(code, questionLabel)],
+    'l-pattern': [String(questionIndex), String(codeLength), nines],
+  };
 }
 
 function initialQpsConfig(
@@ -173,14 +163,15 @@ function initialQpsConfig(
   questionCode = '',
   questionLabel = '',
 ): QpsConfig {
-  const question = (questionCode || sheetName).trim().replace(/^V/i, '');
-  const variableName = `V${question}`;
-  // Questions must use Excel row 1, Column A (for example Q17).
-  const questions = (questionCode || question).trim();
+  const code = (questionCode || sheetName).trim();
+  const rawQ = code.replace(/^V/i, '');
+  const variableName = `V${rawQ}`;
+  // Questions uses row 1 column A code (e.g. "Q17")
+  const questions = (questionCode || rawQ || sheetName).trim();
   return {
     variableName,
     questions,
-    questionLabel: buildQuestionLabel(questionCode || question, questionLabel),
+    questionLabel: buildQuestionLabel(questionCode || rawQ, questionLabel),
     tableType: 'M',
   };
 }
@@ -231,14 +222,33 @@ export default function App() {
   const setFormatInput = useCallback((sheetName: string, templateId: string, index: number, value: string) => {
     setFormatInputs(prev => {
       const next = { ...prev };
-      const sheetInputs = { ...(next[sheetName] || initialFormatInputs(sheetName)) };
+      const sheet = state.sheets.find(s => s.name === sheetName);
+      const sheetIdx = state.sheets.findIndex(s => s.name === sheetName);
+      const fallback = initialFormatInputs(
+        sheetName,
+        sheet?.questionCode,
+        sheet?.questionLabel,
+        sheetIdx >= 0 ? sheetIdx + 1 : 1,
+        sheet?.originalData ?? [],
+        sheet?.columnConfig.columnAKey ?? 'Column A',
+      );
+      const sheetInputs = { ...(next[sheetName] || fallback) };
       const templateInputs = [...(sheetInputs[templateId] || [])];
       templateInputs[index] = value;
+
+      // If user edits Box 2 (length) of L-pattern, dynamically update Box 3 with that many 9's
+      if (templateId === 'l-pattern' && index === 1) {
+        const numDigits = parseInt(value, 10);
+        if (!isNaN(numDigits) && numDigits > 0 && numDigits <= 10) {
+          templateInputs[2] = '9'.repeat(numDigits);
+        }
+      }
+
       sheetInputs[templateId] = templateInputs;
       next[sheetName] = sheetInputs;
       return next;
     });
-  }, []);
+  }, [state.sheets]);
 
   const transformSheet = useCallback((sheet: SheetState, isActive: boolean): RowData[] => {
     let data = applyFilters(sheet.processedData, isActive ? state.searchTerm : '', sheet.filters, sheet.outputHeaders);
@@ -328,12 +338,14 @@ export default function App() {
       const newQpsConfigs: Record<string, QpsConfig> = {};
       const newOpenQps: Record<string, boolean> = {};
       sheets.forEach((s, i) => {
+        const questionIndex = i + 1; // 1-based question sequence (1, 2, 3...)
         newFormatInputs[s.name] = initialFormatInputs(
           s.name,
           s.questionCode,
           s.questionLabel,
-          i + 1,
-          getHighestCodeLength(s),
+          questionIndex,
+          s.originalData,
+          s.columnConfig.columnAKey,
         );
         newOpenFormats[s.name] = i === 0;
         newQpsConfigs[s.name] = initialQpsConfig(s.name, s.questionCode, s.questionLabel);

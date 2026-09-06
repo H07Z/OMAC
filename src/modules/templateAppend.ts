@@ -207,3 +207,14 @@ export function exportAppendResult(result: AppendResult, originalFileName: strin
   const baseName = originalFileName.replace(/\.(xlsx|xls|csv)$/i, '') || 'source';
   XLSX.writeFile(workbook, `${baseName}_OUTPUT.xlsx`, { bookType: 'xlsx' });
 }
+
+export function exportAppendResultCsv(result: AppendResult, originalFileName: string): void {
+  const workbook = XLSX.utils.book_new();
+  const matrix = [result.headers, ...result.rows];
+  const worksheet = XLSX.utils.aoa_to_sheet(matrix);
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'OUTPUT');
+
+  const baseName = originalFileName.replace(/\.(xlsx|xls|csv)$/i, '') || 'source';
+  XLSX.writeFile(workbook, `${baseName}_OUTPUT.csv`, { bookType: 'csv' });
+}
