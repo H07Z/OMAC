@@ -55,6 +55,35 @@ export interface ProcessingResult {
  * @param config - Processing configuration (column keys, exclusions)
  * @returns ProcessingResult containing processed data (without notes) and statistics
  */
+function stripTrailingStandaloneNone(
+  data: RowData[],
+  columnAKey: string,
+  columnBKey: string,
+): { data: RowData[]; removed: number } {
+  if (data.length === 0) return { data, removed: 0 };
+
+  // Walk from the end to the last non-empty record.
+  let idx = data.length - 1;
+  while (idx >= 0) {
+    const code = String(data[idx][columnAKey] ?? '').trim();
+    const label = String(data[idx][columnBKey] ?? '').trim();
+    if (code !== '' || label !== '') break;
+    idx--;
+  }
+
+  if (idx < 0) return { data, removed: 0 };
+
+  const lastLabel = String(data[idx][columnBKey] ?? '').trim().toUpperCase();
+  if (lastLabel === 'NONE') {
+    return {
+      data: data.filter((_, rowIndex) => rowIndex !== idx),
+      removed: 1,
+    };
+  }
+
+  return { data, removed: 0 };
+}
+
 export function processData(
   data: RowData[],
   allHeaders: string[],
@@ -139,6 +168,16 @@ export function processData(
   } else {
     addLog('info', 'Step 3: No Notes column configured, skipping...');
   }
+
+  // Step 3.5: Exclude a final standalone NONE option from sorting/gap-fill.
+  // Business rule: if the last part of the codeframe is a standalone NONE,
+  // it is not under any NET/SUBNET hierarchy block and must not participate
+  // in the OE sorting sequence.
+  const noneResult = stripTrailingStandaloneNone(processed, config.columnAKey, config.columnBKey);
+  processed = noneResult.data;
+  if (noneResult.removed > 0) {
+    addLog('warning', '✓ Removed trailing standalone NONE from OE sorting sequence');
+  }
   
   // Step 4: Sort Data by Column A (numeric)
   addLog('info', 'Step 4: Sorting data by Column A...');
@@ -209,7 +248,7 @@ export function processData(
   addLog('success', `✓ Notes column stripped — output has ${outputHeaders.length} columns`);
   
   // Calculate stats
-  const totalRemoved = removedCount + notesRemovedCount;
+  const totalRemoved = removedCount + notesRemovedCount + noneResult.removed;
   const stats: ProcessingStats = {
     originalRows: data.length,
     removedRows: totalRemoved,
