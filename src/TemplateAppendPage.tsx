@@ -23,6 +23,7 @@ interface TemplateAppendPageProps {
 }
 
 const SAMPLE_TEMPLATE = [
+  ['Serial', 'SERIAL', 'SERIAL'],
   ['S18_BANNER', 'S18_BANNER', 'S18_BANNER'],
   ['PRODUCT', 'I_1_PRODUCT_TRIED', 'I_2_PRODUCT_TRIED'],
   ['Q1', 'I_1_Q1', 'I_2_Q1'],
@@ -87,6 +88,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
   const [sourceSheetName, setSourceSheetName] = useState('');
   const [templateText, setTemplateText] = useState('');
   const [templateRows, setTemplateRows] = useState<TemplateMappingRow[]>([]);
+  const [parityMappingHeader, setParityMappingHeader] = useState('');
   const [result, setResult] = useState<AppendResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -103,6 +105,16 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
     if (templateRows.length > 0) return templateRows;
     return templateText.trim() ? parseTemplateText(templateText) : [];
   }, [templateRows, templateText]);
+
+  // Select the output mapping row; PARITY compares that row's first two
+  // mapped source fields (for example Q18: I_1_Q18 vs I_2_Q18).
+  const parityMappings = useMemo(() => templatePreview.filter(mapping =>
+    !['SERVED', 'SERIAL', 'PARITY'].includes(mapping.targetHeader.trim().toUpperCase()) &&
+    mapping.sourceHeaders.length >= 2 &&
+    mapping.sourceHeaders[0].toUpperCase() !== mapping.sourceHeaders[1].toUpperCase()
+  ), [templatePreview]);
+  const selectedParityMapping = parityMappings.find(mapping => mapping.targetHeader === parityMappingHeader)
+    ?? parityMappings[0];
 
   const handleSourceFile = useCallback(async (file: File) => {
     setErrors([]);
@@ -151,14 +163,17 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
 
     setIsProcessing(true);
     setTimeout(() => {
-      const output = appendByTemplate(sourceMatrix, mappings);
+      const output = appendByTemplate(sourceMatrix, mappings, {
+        parityMappingHeader: selectedParityMapping?.targetHeader,
+      });
       setTemplateRows(mappings);
       setResult(output);
+      if (selectedParityMapping) setParityMappingHeader(selectedParityMapping.targetHeader);
       setIsProcessing(false);
     }, 50);
-  }, [sourceMatrix, templateRows, templateText]);
+  }, [sourceMatrix, templateRows, templateText, selectedParityMapping]);
 
-  const resultPreviewRows = result?.rows.slice(0, 30) ?? [];
+  const resultPreviewRows = result?.rows.slice(0, 50) ?? [];
 
   return (
     <div className="theme-page min-h-screen text-slate-800 dark:text-slate-100 flex flex-col transition-colors w-full max-w-full overflow-x-hidden">
@@ -173,7 +188,10 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
 
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Top-Left Export Action Bar */}
-        <TopExportBar title="Stack Data Exports" badge={result ? `${result.headers.length} columns` : undefined}>
+        <TopExportBar
+          title="Stack Data Exports"
+          badge={result ? `${result.headers.length} columns · ${result.rows.length.toLocaleString()} rows` : undefined}
+        >
           <button
             type="button"
             onClick={() => result && exportAppendResult(result, sourceFileName)}
@@ -209,29 +227,38 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
 
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           <aside className="space-y-5">
+            {/* Quick Mapping Helper */}
             <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-              <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-3">
-                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Fastest Mapping Setup</h2>
+              <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Mapping Template</h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200/60 dark:border-indigo-800">
+                  Auto-Serial
+                </span>
               </div>
               <div className="space-y-3 p-4 text-sm text-slate-600 dark:text-slate-400">
                 <p className="text-xs">
                   Copy a mapping range from Excel and paste it below. Column A is the target header; Columns B+ are mapped source fields.
                 </p>
-                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                  S18_BANNER [tab] S18_BANNER [tab] S18_BANNER
-                  <br />
-                  PRODUCT [tab] I_1_PRODUCT_TRIED ...
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
+                  <div className="text-teal-600 dark:text-teal-400 font-bold">• SERVED: auto-generated (1, 2, ...)</div>
+                  <div className="text-indigo-600 dark:text-indigo-400 font-bold">• Serial: auto-numbered 1..total rows</div>
+                  <div className="text-purple-600 dark:text-purple-400 font-bold">• PARITY: auto-coded 1 (TRUE), 2 (FALSE)</div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => { setTemplateText(SAMPLE_TEMPLATE); setTemplateRows(parseTemplateText(SAMPLE_TEMPLATE)); setResult(null); }}
+                  onClick={() => {
+                    setTemplateText(SAMPLE_TEMPLATE);
+                    setTemplateRows(parseTemplateText(SAMPLE_TEMPLATE));
+                    setResult(null);
+                  }}
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 >
-                  Load Sample Mapping
+                  Load Sample Mapping (with Serial)
                 </button>
               </div>
             </section>
 
+            {/* 1. Upload Source File */}
             <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Upload Source File</h2>
               <UploadBox title="Upload source file" subtitle="File containing row-1 headers" fileName={sourceFileName} onFile={handleSourceFile} />
@@ -252,6 +279,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
               )}
             </section>
 
+            {/* 2. Mapping Template input */}
             <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Mapping Template</h2>
               <UploadBox title="Upload mapping template" subtitle="Optional .xlsx / .csv file" onFile={handleTemplateFile} />
@@ -260,10 +288,55 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                 <textarea
                   value={templateText}
                   onChange={e => { setTemplateText(e.target.value); setTemplateRows([]); setResult(null); }}
-                  placeholder={'PRODUCT\tI_1_PRODUCT_TRIED\tI_2_PRODUCT_TRIED\nQ1\tI_1_Q1\tI_2_Q1'}
-                  className="h-36 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 font-mono text-xs focus:border-teal-500 focus:ring-2 focus:ring-teal-500 outline-none text-slate-800 dark:text-slate-200"
+                  placeholder={'Serial\tSERIAL\tSERIAL\nS18_BANNER\tS18_BANNER\tS18_BANNER\nPRODUCT\tI_1_PRODUCT_TRIED\tI_2_PRODUCT_TRIED\nQ1\tI_1_Q1\tI_2_Q1'}
+                  className="h-32 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 font-mono text-xs focus:border-teal-500 focus:ring-2 focus:ring-teal-500 outline-none text-slate-800 dark:text-slate-200"
                 />
               </div>
+            </section>
+
+            {/* 3. PARITY compares mapped source columns B and C */}
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">3. PARITY Mapping Pair</h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-semibold border border-purple-200/60 dark:border-purple-800">
+                  Source columns 2 &amp; 3
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Choose the mapping row to check. PARITY compares that row's second and third mapping cells (the two source headers), e.g. <span className="font-mono font-semibold">I_1_Q18</span> against <span className="font-mono font-semibold">I_2_Q18</span> for the same source respondent.
+              </p>
+              {parityMappings.length > 0 && selectedParityMapping ? (
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 text-[11px] text-slate-600 dark:text-slate-400 font-mono space-y-1">
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Mapping row used for PARITY</label>
+                  <select
+                    value={selectedParityMapping.targetHeader}
+                    onChange={e => { setParityMappingHeader(e.target.value); setResult(null); }}
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-xs font-mono text-slate-800 dark:text-slate-200 focus-ring-brand"
+                  >
+                    {parityMappings.map(mapping => (
+                      <option key={mapping.targetHeader} value={mapping.targetHeader}>
+                        {mapping.targetHeader}: {mapping.sourceHeaders[0]} vs {mapping.sourceHeaders[1]}
+                      </option>
+                    ))}
+                  </select>
+                  <div>Compare: <span className="font-bold text-slate-800 dark:text-slate-200">{selectedParityMapping.sourceHeaders[0]}</span> == <span className="font-bold text-slate-800 dark:text-slate-200">{selectedParityMapping.sourceHeaders[1]}</span></div>
+                  <div className="pt-1 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-x-4">
+                    <span><span className="font-bold text-emerald-600 dark:text-emerald-400">1</span> = TRUE / equal</span>
+                    <span><span className="font-bold text-amber-600 dark:text-amber-400">2</span> = FALSE / different</span>
+                  </div>
+                  {result?.parityStats && (
+                    <div className="pt-1 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-x-4">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Matches: {result.parityStats.matches.toLocaleString()}</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-bold">Mismatches: {result.parityStats.mismatches.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-700 dark:text-amber-300">
+                  Add a mapping row with two distinct source headers, such as <span className="font-mono">Q18 / I_1_Q18 / I_2_Q18</span>, to enable PARITY.
+                </p>
+              )}
+
               <button
                 type="button"
                 onClick={handleProcess}
@@ -282,46 +355,67 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
           </aside>
 
           <section className="space-y-5 min-w-0">
+            {/* Top Stat Cards */}
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <p className="text-xs text-slate-400">Source rows</p>
                 <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">{Math.max(sourceMatrix.length - 1, 0).toLocaleString()}</p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                <p className="text-xs text-slate-400">Mappings</p>
-                <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">{templatePreview.length.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">Output rows</p>
+                <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">{(result?.rows.length ?? 0).toLocaleString()}</p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                <p className="text-xs text-slate-400">Output columns</p>
+                <p className="text-xs text-slate-400">Total Columns</p>
                 <p className="mt-1 text-xl font-bold text-teal-600 dark:text-teal-400">{(result?.headers.length ?? 0).toLocaleString()}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">+SERVED, Serial, PARITY</p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                <p className="text-xs text-slate-400">Missing headers</p>
-                <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{(result?.missingHeaders.length ?? 0).toLocaleString()}</p>
+                <p className="text-xs text-slate-400">PARITY Rate</p>
+                <p className="mt-1 text-xl font-bold text-purple-600 dark:text-purple-400">
+                  {result?.parityStats
+                    ? `${Math.round((result.parityStats.matches / (result.rows.length || 1)) * 100)}%`
+                    : '—'}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {result?.parityStats
+                    ? `${result.parityStats.matches} true / ${result.parityStats.mismatches} false`
+                    : 'Select 2 columns'}
+                </p>
               </div>
             </div>
 
+            {/* Template Mapping Preview */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Template Mapping Preview</h2>
-                  <p className="text-xs text-slate-400">Rows become output columns; B onward are appended source fields.</p>
+                  <p className="text-xs text-slate-400">Target output headers and their mapped source fields from row 1.</p>
                 </div>
               </div>
-              <div className="max-h-56 overflow-auto">
+              <div className="max-h-52 overflow-auto">
                 {templatePreview.length > 0 ? (
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Output header</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Mapped source headers</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Output Header</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Mapped Source Headers</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {templatePreview.map((row, i) => (
                         <tr key={`${row.targetHeader}-${i}`}>
-                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">{row.targetHeader}</td>
-                          <td className="px-3 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{row.sourceHeaders.join(', ') || '—'}</td>
+                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">
+                            {row.targetHeader}
+                            {row.targetHeader.toUpperCase() === 'SERIAL' && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold border border-indigo-200/60 dark:border-indigo-800">
+                                1..N sequence
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">
+                            {row.sourceHeaders.join(', ') || <span className="text-slate-400 italic">(auto-populated)</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -332,33 +426,110 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
               </div>
             </div>
 
+            {/* OUTPUT Preview */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3 gap-2">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">OUTPUT Preview</h2>
-                  <p className="text-xs text-slate-400">SERVED column inserted first (1 = 1st amend, 2 = 2nd amend), followed by mapped output columns.</p>
+                  <p className="text-xs text-slate-400">
+                    <span className="font-semibold text-teal-600 dark:text-teal-400">SERVED</span> (col 1) ·{' '}
+                    <span className="font-semibold text-indigo-600 dark:text-indigo-400">Serial</span> (1..N) ·{' '}
+                    Mapped Columns ·{' '}
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">PARITY</span> (1=TRUE, 2=FALSE)
+                  </p>
                 </div>
+                {result?.parityStats && (
+                  <div className="flex items-center gap-2 text-xs font-mono">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-200 dark:border-emerald-800">
+                      1 (TRUE): {result.parityStats.matches.toLocaleString()}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold border border-amber-200 dark:border-amber-800">
+                      2 (FALSE): {result.parityStats.mismatches.toLocaleString()}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="overflow-auto max-h-[28rem]">
+
+              <div className="overflow-auto max-h-[30rem]">
                 {result ? (
                   <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10">
                       <tr>
-                        {result.headers.map((h, i) => (
-                          <th key={`${h}-${i}`} className="border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">
-                            {h}
-                          </th>
-                        ))}
+                        {result.headers.map((h, i) => {
+                          const isServed = h === 'SERVED';
+                          const isSerial = h === 'Serial';
+                          const isParity = h === 'PARITY';
+                          return (
+                            <th
+                              key={`${h}-${i}`}
+                              className={`border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-left text-xs font-semibold whitespace-nowrap ${
+                                isServed
+                                  ? 'text-teal-700 dark:text-teal-300 bg-teal-50/50 dark:bg-teal-950/30'
+                                  : isSerial
+                                  ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/30'
+                                  : isParity
+                                  ? 'text-purple-700 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-950/30'
+                                  : 'text-slate-600 dark:text-slate-300'
+                              }`}
+                            >
+                              {h}
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {resultPreviewRows.map((row, r) => (
                         <tr key={r} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                          {result.headers.map((_, c) => (
-                            <td key={c} className={`px-3 py-2 text-slate-700 dark:text-slate-300 ${c === 0 ? 'font-mono font-bold text-teal-600 dark:text-teal-400' : ''}`}>
-                              {row[c] ?? <span className="text-slate-300 dark:text-slate-600">—</span>}
-                            </td>
-                          ))}
+                          {result.headers.map((h, c) => {
+                            const val = row[c];
+                            const isServed = h === 'SERVED';
+                            const isSerial = h === 'Serial';
+                            const isParity = h === 'PARITY';
+
+                            if (isServed) {
+                              return (
+                                <td key={c} className="px-3 py-2 font-mono font-bold text-teal-600 dark:text-teal-400 bg-teal-50/20 dark:bg-teal-950/10">
+                                  {val ?? '—'}
+                                </td>
+                              );
+                            }
+
+                            if (isSerial) {
+                              return (
+                                <td key={c} className="px-3 py-2 font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/10">
+                                  {val ?? '—'}
+                                </td>
+                              );
+                            }
+
+                            if (isParity) {
+                              const isMatch = val === 1;
+                              return (
+                                <td key={c} className="px-3 py-2">
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-bold ${
+                                      isMatch
+                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                        : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                    }`}
+                                  >
+                                    {val} {isMatch ? '(TRUE)' : '(FALSE)'}
+                                  </span>
+                                </td>
+                              );
+                            }
+
+                            return (
+                              <td key={c} className="px-3 py-2 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                {val !== null && val !== undefined && val !== '' ? (
+                                  String(val)
+                                ) : (
+                                  <span className="text-slate-300 dark:text-slate-600">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                     </tbody>
@@ -367,12 +538,18 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                   <div className="p-12 text-center text-sm text-slate-400">Generate OUTPUT to preview results.</div>
                 )}
               </div>
+              {result && result.rows.length > 50 && (
+                <div className="p-3 text-center text-xs text-slate-400 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                  Showing first 50 rows of {result.rows.length.toLocaleString()}. All rows are included in the downloaded file.
+                </div>
+              )}
             </div>
 
+            {/* Processing Log */}
             {result && result.log.length > 0 && (
               <details className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <summary className="cursor-pointer text-sm font-semibold text-slate-800 dark:text-slate-200">Processing log</summary>
-                <div className="mt-3 max-h-56 overflow-auto font-mono text-xs text-slate-500 dark:text-slate-400">
+                <div className="mt-3 max-h-56 overflow-auto font-mono text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
                   {result.log.map((line, i) => <div key={i}>{line}</div>)}
                 </div>
               </details>
