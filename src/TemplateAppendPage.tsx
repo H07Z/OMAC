@@ -92,6 +92,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
   const [result, setResult] = useState<AppendResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showMappingTemplate, setShowMappingTemplate] = useState(true);
 
   const sourceMatrix = useMemo<CellValue[][]>(() => {
     if (!sourceWorkbook || !sourceSheetName) return [];
@@ -229,33 +230,45 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
           <aside className="space-y-5">
             {/* Quick Mapping Helper */}
             <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-              <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowMappingTemplate(value => !value)}
+                aria-expanded={showMappingTemplate}
+                className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-left dark:border-slate-800"
+              >
                 <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Mapping Template</h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200/60 dark:border-indigo-800">
-                  Auto-Serial
+                <span className="flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200/60 dark:border-indigo-800">
+                    Auto-Serial
+                  </span>
+                  <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">
+                    {showMappingTemplate ? 'Hide' : 'Show'}
+                  </span>
                 </span>
-              </div>
-              <div className="space-y-3 p-4 text-sm text-slate-600 dark:text-slate-400">
-                <p className="text-xs">
-                  Copy a mapping range from Excel and paste it below. Column A is the target header; Columns B+ are mapped source fields.
-                </p>
-                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
-                  <div className="text-teal-600 dark:text-teal-400 font-bold">• SERVED: auto-generated (1, 2, ...)</div>
-                  <div className="text-indigo-600 dark:text-indigo-400 font-bold">• Serial: auto-numbered 1..total rows</div>
-                  <div className="text-purple-600 dark:text-purple-400 font-bold">• PARITY: auto-coded 1 (TRUE), 2 (FALSE)</div>
+              </button>
+              {showMappingTemplate && (
+                <div className="space-y-3 p-4 text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-xs">
+                    Copy a mapping range from Excel and paste it below. Column A is the target header; Columns B+ are mapped source fields.
+                  </p>
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
+                    <div className="text-teal-600 dark:text-teal-400 font-bold">• SERVED: auto-generated (1, 2, ...)</div>
+                    <div className="text-indigo-600 dark:text-indigo-400 font-bold">• Serial: auto-numbered 1..total rows</div>
+                    <div className="text-purple-600 dark:text-purple-400 font-bold">• PARITY: auto-coded 1 (TRUE), 2 (FALSE)</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemplateText(SAMPLE_TEMPLATE);
+                      setTemplateRows(parseTemplateText(SAMPLE_TEMPLATE));
+                      setResult(null);
+                    }}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    Load Sample Mapping (with Serial)
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTemplateText(SAMPLE_TEMPLATE);
-                    setTemplateRows(parseTemplateText(SAMPLE_TEMPLATE));
-                    setResult(null);
-                  }}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                  Load Sample Mapping (with Serial)
-                </button>
-              </div>
+              )}
             </section>
 
             {/* 1. Upload Source File */}
