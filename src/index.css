@@ -111,6 +111,10 @@ body {
   border-color: color-mix(in srgb, #1e293b 74%, var(--brand) 26%);
 }
 
+.dark .stack-mapping-note {
+  color: color-mix(in srgb, var(--brand) 45%, #e2e8f0);
+}
+
 html {
   scroll-behavior: smooth;
 }

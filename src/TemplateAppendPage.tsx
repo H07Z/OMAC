@@ -14,6 +14,7 @@ import {
 } from './modules/templateAppend';
 import HeaderNav, { PageId } from './components/HeaderNav';
 import TopExportBar from './components/TopExportBar';
+import { MappingNote, ParityBadge, ParitySummary } from './components/StackDataIndicators';
 
 interface TemplateAppendPageProps {
   onNavigate: (page: PageId) => void;
@@ -231,7 +232,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
           </button>
         </TopExportBar>
 
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="space-y-5">
             {/* Quick Mapping Helper */}
             <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
@@ -650,25 +651,23 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Output Header</th>
+                        <th className="w-48 min-w-[180px] px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Output Header</th>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Mapped Source Headers</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {templatePreview.map((row, i) => (
                         <tr key={`${row.targetHeader}-${i}`}>
-                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">
-                            {row.targetHeader}
-                            {row.targetHeader.toUpperCase() === 'SERIAL' && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold border border-indigo-200/60 dark:border-indigo-800">
-                                1..N sequence
-                              </span>
-                            )}
-                            {row.targetHeader.toUpperCase() === 'ROUND' && roundInput.trim() !== '' && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-semibold border border-sky-200/60 dark:border-sky-800">
-                                ={roundInput.trim()}
-                              </span>
-                            )}
+                          <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-200">
+                            <div className="flex min-h-6 items-center gap-2.5 whitespace-nowrap">
+                              <span className="shrink-0">{row.targetHeader}</span>
+                              {row.targetHeader.toUpperCase() === 'SERIAL' && (
+                                <MappingNote><span className="mr-1 font-mono font-semibold">1..N</span> sequence</MappingNote>
+                              )}
+                              {row.targetHeader.toUpperCase() === 'ROUND' && roundInput.trim() !== '' && (
+                                <MappingNote><span className="font-mono">= {roundInput.trim()}</span></MappingNote>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">
                             {row.sourceHeaders.join(', ') || <span className="text-slate-400 italic">(auto-populated)</span>}
@@ -685,35 +684,17 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
 
             {/* OUTPUT Preview */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3 gap-2">
-                <div>
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800">
+                <div className="min-w-0 flex-1 basis-80">
                   <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">OUTPUT Preview</h2>
-                  <p className="text-xs text-slate-400">
-                    <span className="font-semibold text-teal-600 dark:text-teal-400">SERVED</span> (col 1) ·{' '}
-                    <span className="font-semibold text-indigo-600 dark:text-indigo-400">Serial</span> (1..N) ·{' '}
-                    <span className="font-semibold text-sky-600 dark:text-sky-400">ROUND</span> (fixed value) ·{' '}
-                    Mapped Columns ·{' '}
-                    <span className="font-semibold text-purple-600 dark:text-purple-400">PARITY</span> (1=TRUE, 2=FALSE)
-                    {result?.parityCol1 && result?.parityCol2 && (
-                      <>
-                        {' '}·{' '}
-                        <span className="font-semibold text-amber-600 dark:text-amber-400">{result.parityCol1}</span>
-                        {' '}&amp;{' '}
-                        <span className="font-semibold text-amber-600 dark:text-amber-400">{result.parityCol2}</span>
-                        {' '}(Parity Inputs)
-                      </>
-                    )}
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                    {result?.parityCol1 && result?.parityCol2 ? (
+                      <>PARITY compares <span className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">{result.parityCol1}</span> with <span className="break-all font-mono text-[11px] text-slate-700 dark:text-slate-300">{result.parityCol2}</span>. Both source fields are included at the end.</>
+                    ) : 'Your stacked data, with generated SERVED, Serial and ROUND fields.'}
                   </p>
                 </div>
                 {result?.parityStats && (
-                  <div className="flex items-center gap-2 text-xs font-mono">
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-200 dark:border-emerald-800">
-                      1 (TRUE): {result.parityStats.matches.toLocaleString()}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold border border-amber-200 dark:border-amber-800">
-                      2 (FALSE): {result.parityStats.mismatches.toLocaleString()}
-                    </span>
-                  </div>
+                  <ParitySummary matches={result.parityStats.matches} mismatches={result.parityStats.mismatches} />
                 )}
               </div>
 
@@ -731,7 +712,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                           return (
                             <th
                               key={`${h}-${i}`}
-                              className={`border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-left text-xs font-semibold whitespace-nowrap ${
+                              className={`border-b border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold whitespace-nowrap ${isParity ? 'min-w-[112px] text-center' : 'text-left'} ${
                                 isServed
                                   ? 'text-teal-700 dark:text-teal-300 bg-teal-50/50 dark:bg-teal-950/30'
                                   : isSerial
@@ -786,18 +767,9 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                             }
 
                             if (isParity) {
-                              const isMatch = val === 1;
                               return (
-                                <td key={c} className="px-3 py-2">
-                                  <span
-                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-bold ${
-                                      isMatch
-                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                                        : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                                    }`}
-                                  >
-                                    {val} {isMatch ? '(TRUE)' : '(FALSE)'}
-                                  </span>
+                                <td key={c} className="px-3 py-2 text-center whitespace-nowrap">
+                                  <ParityBadge value={val} />
                                 </td>
                               );
                             }
