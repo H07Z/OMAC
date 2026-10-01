@@ -89,10 +89,13 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
   const [templateText, setTemplateText] = useState('');
   const [templateRows, setTemplateRows] = useState<TemplateMappingRow[]>([]);
   const [parityMappingHeader, setParityMappingHeader] = useState('');
+  const [roundInput, setRoundInput] = useState('');
   const [result, setResult] = useState<AppendResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingTemplate, setShowMappingTemplate] = useState(true);
+  const [showMappingHelper, setShowMappingHelper] = useState(true);
+  const [showDataChecks, setShowDataChecks] = useState(true);
 
   const sourceMatrix = useMemo<CellValue[][]>(() => {
     if (!sourceWorkbook || !sourceSheetName) return [];
@@ -166,13 +169,15 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
     setTimeout(() => {
       const output = appendByTemplate(sourceMatrix, mappings, {
         parityMappingHeader: selectedParityMapping?.targetHeader,
+        roundValue: roundInput.trim() === '' ? undefined : roundInput.trim(),
       });
       setTemplateRows(mappings);
       setResult(output);
       if (selectedParityMapping) setParityMappingHeader(selectedParityMapping.targetHeader);
+      setShowDataChecks(true);
       setIsProcessing(false);
     }, 50);
-  }, [sourceMatrix, templateRows, templateText, selectedParityMapping]);
+  }, [sourceMatrix, templateRows, templateText, selectedParityMapping, roundInput]);
 
   const resultPreviewRows = result?.rows.slice(0, 50) ?? [];
 
@@ -232,30 +237,36 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
             <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
               <button
                 type="button"
-                onClick={() => setShowMappingTemplate(value => !value)}
-                aria-expanded={showMappingTemplate}
-                className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-left dark:border-slate-800"
+                onClick={() => setShowMappingHelper(v => !v)}
+                aria-expanded={showMappingHelper}
+                className="w-full border-b border-slate-100 dark:border-slate-800 px-4 py-3 flex items-center justify-between gap-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
               >
-                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Mapping Template</h2>
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Mapping Template</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200/60 dark:border-indigo-800">
                     Auto-Serial
                   </span>
-                  <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">
-                    {showMappingTemplate ? 'Hide' : 'Show'}
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    {showMappingHelper ? 'Hide' : 'Show'}
                   </span>
+                  <svg className={`w-4 h-4 text-slate-400 transition-transform ${showMappingHelper ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
                 </span>
               </button>
-              {showMappingTemplate && (
+              {showMappingHelper && (
                 <div className="space-y-3 p-4 text-sm text-slate-600 dark:text-slate-400">
                   <p className="text-xs">
                     Copy a mapping range from Excel and paste it below. Column A is the target header; Columns B+ are mapped source fields.
                   </p>
-                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
-                    <div className="text-teal-600 dark:text-teal-400 font-bold">• SERVED: auto-generated (1, 2, ...)</div>
-                    <div className="text-indigo-600 dark:text-indigo-400 font-bold">• Serial: auto-numbered 1..total rows</div>
-                    <div className="text-purple-600 dark:text-purple-400 font-bold">• PARITY: auto-coded 1 (TRUE), 2 (FALSE)</div>
-                  </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
+                  <div className="text-teal-600 dark:text-teal-400 font-bold">• SERVED: auto-generated (1, 2, ...)</div>
+                  <div className="text-indigo-600 dark:text-indigo-400 font-bold">• Serial: auto-numbered 1..total rows</div>
+                  <div className="text-sky-600 dark:text-sky-400 font-bold">• ROUND: optional fixed value for every row</div>
+                  <div className="text-purple-600 dark:text-purple-400 font-bold">• PARITY: auto-coded 1 (TRUE), 2 (FALSE)</div>
+                </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -293,33 +304,94 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
             </section>
 
             {/* 2. Mapping Template input */}
-            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Mapping Template</h2>
-              <UploadBox title="Upload mapping template" subtitle="Optional .xlsx / .csv file" onFile={handleTemplateFile} />
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Or paste tab-delimited mapping</label>
-                <textarea
-                  value={templateText}
-                  onChange={e => { setTemplateText(e.target.value); setTemplateRows([]); setResult(null); }}
-                  placeholder={'Serial\tSERIAL\tSERIAL\nS18_BANNER\tS18_BANNER\tS18_BANNER\nPRODUCT\tI_1_PRODUCT_TRIED\tI_2_PRODUCT_TRIED\nQ1\tI_1_Q1\tI_2_Q1'}
-                  className="h-32 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 font-mono text-xs focus:border-teal-500 focus:ring-2 focus:ring-teal-500 outline-none text-slate-800 dark:text-slate-200"
-                />
-              </div>
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowMappingTemplate(v => !v)}
+                aria-expanded={showMappingTemplate}
+                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Mapping Template</span>
+                  {templatePreview.length > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold border border-slate-200/60 dark:border-slate-700">
+                      {templatePreview.length} rows
+                    </span>
+                  )}
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    {showMappingTemplate ? 'Hide' : 'Show'}
+                  </span>
+                  <svg className={`w-4 h-4 text-slate-400 transition-transform ${showMappingTemplate ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </span>
+              </button>
+              {showMappingTemplate && (
+                <div className="p-4 pt-0 space-y-3">
+                  <UploadBox title="Upload mapping template" subtitle="Optional .xlsx / .csv file" onFile={handleTemplateFile} />
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Or paste tab-delimited mapping</label>
+                    <textarea
+                      value={templateText}
+                      onChange={e => { setTemplateText(e.target.value); setTemplateRows([]); setResult(null); }}
+                      placeholder={'Serial\tSERIAL\tSERIAL\nS18_BANNER\tS18_BANNER\tS18_BANNER\nPRODUCT\tI_1_PRODUCT_TRIED\tI_2_PRODUCT_TRIED\nQ1\tI_1_Q1\tI_2_Q1'}
+                      className="h-32 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 font-mono text-xs focus:border-teal-500 focus:ring-2 focus:ring-teal-500 outline-none text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+                </div>
+              )}
             </section>
 
-            {/* 3. PARITY compares mapped source columns B and C */}
+            {/* 3. ROUND fixed value */}
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">3. ROUND Number</h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-semibold border border-sky-200/60 dark:border-sky-800">
+                  Fills ROUND column
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Enter the round number/text to write into every data row of the output <span className="font-mono font-semibold">ROUND</span> column.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={roundInput}
+                  onChange={e => { setRoundInput(e.target.value); setResult(null); }}
+                  placeholder="e.g. 1"
+                  aria-label="ROUND number to populate"
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-800 dark:text-slate-200 focus-ring-brand"
+                />
+                {roundInput.trim() !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => { setRoundInput(''); setResult(null); }}
+                    className="shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                {roundInput.trim() === ''
+                  ? 'Leave blank to keep mapped/source ROUND values. If ROUND is absent and this is filled, the column is auto-added.'
+                  : `On generate, every output row gets ROUND = "${roundInput.trim()}".`}
+              </p>
+            </section>
+
+            {/* 4. PARITY compares mapped source columns B and C */}
             <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">3. PARITY Mapping Pair</h2>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">4. PARITY Mapping Pair</h2>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-semibold border border-purple-200/60 dark:border-purple-800">
                   Source columns 2 &amp; 3
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Choose the mapping row to check. PARITY compares that row's second and third mapping cells (the two source headers), e.g. <span className="font-mono font-semibold">I_1_Q18</span> against <span className="font-mono font-semibold">I_2_Q18</span> for the same source respondent.
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Both compared source columns are appended at the end of the preview and exported files, with their original headers and paired values.
               </p>
               {parityMappings.length > 0 && selectedParityMapping ? (
                 <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 text-[11px] text-slate-600 dark:text-slate-400 font-mono space-y-1">
@@ -372,7 +444,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
 
           <section className="space-y-5 min-w-0">
             {/* Top Stat Cards */}
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <p className="text-xs text-slate-400">Source rows</p>
                 <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">{Math.max(sourceMatrix.length - 1, 0).toLocaleString()}</p>
@@ -384,7 +456,37 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <p className="text-xs text-slate-400">Total Columns</p>
                 <p className="mt-1 text-xl font-bold text-teal-600 dark:text-teal-400">{(result?.headers.length ?? 0).toLocaleString()}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">+SERVED, Serial, PARITY and comparison pair</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">+SERVED, Serial, PARITY</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                <p className="text-xs text-slate-400">Missing answers</p>
+                <p className={`mt-1 text-xl font-bold ${result ? (result.quality && result.quality.missingCells > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400') : 'text-slate-800 dark:text-white'}`}>
+                  {result?.quality ? result.quality.missingCells.toLocaleString() : '—'}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {result?.quality
+                    ? `${result.quality.rowsWithMissing.toLocaleString()} rows affected`
+                    : 'Generate OUTPUT'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                <p className="text-xs text-slate-400">ROUND</p>
+                <p className="mt-1 text-xl font-bold text-sky-600 dark:text-sky-400">
+                  {result?.roundValue !== undefined && result?.roundValue !== null && String(result.roundValue).trim() !== ''
+                    ? String(result.roundValue)
+                    : roundInput.trim() !== ''
+                      ? roundInput.trim()
+                      : '—'}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {result?.roundMode === 'override'
+                    ? 'Fixed override applied'
+                    : result?.roundMode === 'auto-added'
+                      ? 'Auto-added column'
+                      : result?.roundMode === 'mapped'
+                        ? 'From mapped source'
+                        : 'No override'}
+                </p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <p className="text-xs text-slate-400">PARITY Rate</p>
@@ -400,6 +502,140 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                 </p>
               </div>
             </div>
+
+            {/* Data Quality Checks */}
+            {result?.quality && (
+              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowDataChecks(v => !v)}
+                  aria-expanded={showDataChecks}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-800 dark:text-slate-200">Data Quality Checks</span>
+                    <span className="block text-xs text-slate-400">Missing answers, Serial/SERVED consistency, ROUND coverage, and PARITY availability.</span>
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    {(() => {
+                      const failed = result.quality.checks.filter(check => check.status === 'fail').length;
+                      const warned = result.quality.checks.filter(check => check.status === 'warn').length;
+                      if (failed > 0) {
+                        return (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 font-bold border border-red-200/60 dark:border-red-800">
+                            {failed} issue{failed === 1 ? '' : 's'} need attention
+                          </span>
+                        );
+                      }
+                      if (warned > 0) {
+                        return (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold border border-amber-200/60 dark:border-amber-800">
+                            {warned} warning{warned === 1 ? '' : 's'}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200/60 dark:border-emerald-800">
+                          All checks passed
+                        </span>
+                      );
+                    })()}
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      {showDataChecks ? 'Hide' : 'Show'}
+                    </span>
+                    <svg className={`w-4 h-4 text-slate-400 transition-transform ${showDataChecks ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </button>
+
+                {showDataChecks && (
+                  <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-4 space-y-4">
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {result.quality.checks.map(check => (
+                        <div
+                          key={check.id}
+                          className={`rounded-xl border p-3 ${
+                            check.status === 'pass'
+                              ? 'border-emerald-200/70 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/20'
+                              : check.status === 'warn'
+                                ? 'border-amber-200/70 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20'
+                                : 'border-red-200/70 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/20'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{check.label}</p>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${
+                              check.status === 'pass'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'
+                                : check.status === 'warn'
+                                  ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                                  : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                            }`}>
+                              {check.status}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{check.summary}</p>
+                          {check.detail && (
+                            <p className="mt-1 text-[11px] font-mono text-slate-500 dark:text-slate-400 break-words">{check.detail}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {result.quality.missingByColumn.length > 0 && (
+                      <div className="overflow-auto rounded-xl border border-slate-200/70 dark:border-slate-800">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 dark:bg-slate-800">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400">Column with missing answers</th>
+                              <th className="px-3 py-2 text-right font-semibold text-slate-500 dark:text-slate-400">Missing</th>
+                              <th className="px-3 py-2 text-right font-semibold text-slate-500 dark:text-slate-400">Checked rows</th>
+                              <th className="px-3 py-2 text-right font-semibold text-slate-500 dark:text-slate-400">Missing %</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {result.quality.missingByColumn.slice(0, 12).map(column => (
+                              <tr key={`${column.header}-${column.index}`}>
+                                <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-200">{column.header}</td>
+                                <td className="px-3 py-2 text-right font-mono font-bold text-red-600 dark:text-red-400">{column.missing.toLocaleString()}</td>
+                                <td className="px-3 py-2 text-right font-mono text-slate-600 dark:text-slate-400">{column.total.toLocaleString()}</td>
+                                <td className="px-3 py-2 text-right font-mono text-slate-600 dark:text-slate-400">{(column.missingRate * 100).toFixed(1)}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {result.quality.missingExamples.length > 0 && (
+                      <div className="overflow-auto rounded-xl border border-slate-200/70 dark:border-slate-800">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 dark:bg-slate-800">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400">Output row</th>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400">Serial</th>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400">SERVED</th>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400">Missing columns</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {result.quality.missingExamples.map(example => (
+                              <tr key={example.outputRowNumber}>
+                                <td className="px-3 py-2 font-mono font-bold text-slate-800 dark:text-slate-200">{example.outputRowNumber}</td>
+                                <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-400">{example.serial ?? '—'}</td>
+                                <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-400">{example.served ?? '—'}</td>
+                                <td className="px-3 py-2 font-mono text-red-600 dark:text-red-400">{example.missingHeaders.join(', ')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Template Mapping Preview */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
@@ -428,6 +664,11 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                                 1..N sequence
                               </span>
                             )}
+                            {row.targetHeader.toUpperCase() === 'ROUND' && roundInput.trim() !== '' && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-semibold border border-sky-200/60 dark:border-sky-800">
+                                ={roundInput.trim()}
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">
                             {row.sourceHeaders.join(', ') || <span className="text-slate-400 italic">(auto-populated)</span>}
@@ -450,9 +691,18 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                   <p className="text-xs text-slate-400">
                     <span className="font-semibold text-teal-600 dark:text-teal-400">SERVED</span> (col 1) ·{' '}
                     <span className="font-semibold text-indigo-600 dark:text-indigo-400">Serial</span> (1..N) ·{' '}
+                    <span className="font-semibold text-sky-600 dark:text-sky-400">ROUND</span> (fixed value) ·{' '}
                     Mapped Columns ·{' '}
-                    <span className="font-semibold text-purple-600 dark:text-purple-400">PARITY</span> (1=TRUE, 2=FALSE) ·{' '}
-                    Comparison source columns (last two)
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">PARITY</span> (1=TRUE, 2=FALSE)
+                    {result?.parityCol1 && result?.parityCol2 && (
+                      <>
+                        {' '}·{' '}
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">{result.parityCol1}</span>
+                        {' '}&amp;{' '}
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">{result.parityCol2}</span>
+                        {' '}(Parity Inputs)
+                      </>
+                    )}
                   </p>
                 </div>
                 {result?.parityStats && (
@@ -476,7 +726,8 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                           const isServed = h === 'SERVED';
                           const isSerial = h === 'Serial';
                           const isParity = h === 'PARITY';
-                          const isComparisonSource = !!result.parityStats && i >= result.headers.length - 2;
+                          const isRound = h.trim().toUpperCase() === 'ROUND';
+                          const isParitySource = h === result.parityCol1 || h === result.parityCol2;
                           return (
                             <th
                               key={`${h}-${i}`}
@@ -487,15 +738,14 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                                   ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/30'
                                   : isParity
                                   ? 'text-purple-700 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-950/30'
-                                  : isComparisonSource
-                                  ? 'text-brand bg-brand-50'
+                                  : isRound
+                                  ? 'text-sky-700 dark:text-sky-300 bg-sky-50/50 dark:bg-sky-950/30 font-bold'
+                                  : isParitySource
+                                  ? 'text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/30 font-bold'
                                   : 'text-slate-600 dark:text-slate-300'
                               }`}
                             >
                               {h}
-                              {isComparisonSource && (
-                                <span className="block text-[9px] font-normal">PARITY source</span>
-                              )}
                             </th>
                           );
                         })}
@@ -509,6 +759,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                             const isServed = h === 'SERVED';
                             const isSerial = h === 'Serial';
                             const isParity = h === 'PARITY';
+                            const isRound = h.trim().toUpperCase() === 'ROUND';
 
                             if (isServed) {
                               return (
@@ -521,6 +772,14 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                             if (isSerial) {
                               return (
                                 <td key={c} className="px-3 py-2 font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/10">
+                                  {val ?? '—'}
+                                </td>
+                              );
+                            }
+
+                            if (isRound) {
+                              return (
+                                <td key={c} className="px-3 py-2 font-mono font-bold text-sky-700 dark:text-sky-300 bg-sky-50/20 dark:bg-sky-950/10">
                                   {val ?? '—'}
                                 </td>
                               );
@@ -539,6 +798,19 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                                   >
                                     {val} {isMatch ? '(TRUE)' : '(FALSE)'}
                                   </span>
+                                </td>
+                              );
+                            }
+
+                            const isParitySource = h === result.parityCol1 || h === result.parityCol2;
+                            if (isParitySource) {
+                              return (
+                                <td key={c} className="px-3 py-2 font-mono font-semibold text-amber-700 dark:text-amber-300 bg-amber-50/20 dark:bg-amber-950/10 whitespace-nowrap">
+                                  {val !== null && val !== undefined && val !== '' ? (
+                                    String(val)
+                                  ) : (
+                                    <span className="text-slate-300 dark:text-slate-600">—</span>
+                                  )}
                                 </td>
                               );
                             }
