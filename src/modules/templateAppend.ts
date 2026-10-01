@@ -21,11 +21,13 @@
  *    - Sequential number per row from 1 up to total rows of data (1..N).
  *    - If Serial is on the mapping, it is populated with 1..N.
  *    - If there was no Serial on the map, it is automatically added.
- * 3. PARITY (Last column):
+ * 3. PARITY and comparison source columns (appended):
  *    - For the selected mapping row, compares source mapping cells B and C
  *      (the first two source headers), e.g. I_1_Q18 vs I_2_Q18.
  *    - If values match (TRUE), coded as 1.
  *    - If values do not match (FALSE), coded as 2.
+ *    - Both compared source fields are the final two output columns, using
+ *      their original headers and the same respondent alignment as PARITY.
  */
 
 import * as XLSX from 'xlsx';
@@ -128,6 +130,7 @@ export function parseTemplateMatrix(matrix: CellValue[][]): TemplateMappingRow[]
  * - SERVED column as column 1 (1 = 1st amend, 2 = 2nd amend, ...)
  * - Serial column (1..N sequence; auto-added if not in mapping)
  * - PARITY column (compares 2 selected columns: 1 = TRUE, 2 = FALSE)
+ * - Both PARITY source fields appended as the final two output columns
  */
 export function appendByTemplate(
   sourceMatrix: CellValue[][],
@@ -321,18 +324,35 @@ export function appendByTemplate(
       }
 
       const parityValues: number[] = [];
+      const comparisonPairs: Array<[CellValue, CellValue]> = [];
       segmentLengths.forEach(length => {
-        for (let r = 0; r < length; r++) parityValues.push(perRespondent[r] ?? 2);
+        for (let r = 0; r < length; r++) {
+          parityValues.push(perRespondent[r] ?? 2);
+          // Repeat both original values alongside their comparison in each
+          // amendment block, without stacking the two reference fields.
+          comparisonPairs.push([
+            sourceRows[r]?.[sourceIndex1] ?? null,
+            sourceRows[r]?.[sourceIndex2] ?? null,
+          ]);
+        }
       });
-      while (parityValues.length < maxLength) parityValues.push(2);
+      while (parityValues.length < maxLength) {
+        parityValues.push(2);
+        comparisonPairs.push([null, null]);
+      }
 
-      finalHeaders.push('PARITY');
-      finalRows = finalRows.map((row, r) => [...row, parityValues[r]]);
+      finalHeaders.push('PARITY', parityCol1, parityCol2);
+      finalRows = finalRows.map((row, r) => [
+        ...row,
+        parityValues[r],
+        ...comparisonPairs[r],
+      ]);
       parityStats = { matches, mismatches };
       log.push(
         `Auto-added "PARITY" for mapping "${parityMappingHeader}" by comparing mapped source fields "${parityCol1}" and "${parityCol2}" row-by-row: ` +
         `${matches} matches (code 1), ${mismatches} mismatches (code 2)`
       );
+      log.push(`Appended comparison source columns "${parityCol1}" and "${parityCol2}" at the end of the output.`);
     }
   }
 
@@ -341,7 +361,10 @@ export function appendByTemplate(
     rows: finalRows,
     log,
     missingHeaders: Array.from(missing),
-    outputColumnLengths: intermediateColumns.map(col => col.length),
+    outputColumnLengths: [
+      ...intermediateColumns.map(col => col.length),
+      ...(parityStats ? [maxLength, maxLength, maxLength] : []),
+    ],
     servedSequence,
     parityMappingHeader,
     parityCol1,

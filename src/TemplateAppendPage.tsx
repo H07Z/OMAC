@@ -318,6 +318,9 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Choose the mapping row to check. PARITY compares that row's second and third mapping cells (the two source headers), e.g. <span className="font-mono font-semibold">I_1_Q18</span> against <span className="font-mono font-semibold">I_2_Q18</span> for the same source respondent.
               </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Both compared source columns are appended at the end of the preview and exported files, with their original headers and paired values.
+              </p>
               {parityMappings.length > 0 && selectedParityMapping ? (
                 <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 text-[11px] text-slate-600 dark:text-slate-400 font-mono space-y-1">
                   <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Mapping row used for PARITY</label>
@@ -381,7 +384,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <p className="text-xs text-slate-400">Total Columns</p>
                 <p className="mt-1 text-xl font-bold text-teal-600 dark:text-teal-400">{(result?.headers.length ?? 0).toLocaleString()}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">+SERVED, Serial, PARITY</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">+SERVED, Serial, PARITY and comparison pair</p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <p className="text-xs text-slate-400">PARITY Rate</p>
@@ -448,7 +451,8 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                     <span className="font-semibold text-teal-600 dark:text-teal-400">SERVED</span> (col 1) ·{' '}
                     <span className="font-semibold text-indigo-600 dark:text-indigo-400">Serial</span> (1..N) ·{' '}
                     Mapped Columns ·{' '}
-                    <span className="font-semibold text-purple-600 dark:text-purple-400">PARITY</span> (1=TRUE, 2=FALSE)
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">PARITY</span> (1=TRUE, 2=FALSE) ·{' '}
+                    Comparison source columns (last two)
                   </p>
                 </div>
                 {result?.parityStats && (
@@ -472,6 +476,7 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                           const isServed = h === 'SERVED';
                           const isSerial = h === 'Serial';
                           const isParity = h === 'PARITY';
+                          const isComparisonSource = !!result.parityStats && i >= result.headers.length - 2;
                           return (
                             <th
                               key={`${h}-${i}`}
@@ -482,10 +487,15 @@ export default function TemplateAppendPage({ onNavigate, showDebug, onToggleDebu
                                   ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/30'
                                   : isParity
                                   ? 'text-purple-700 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-950/30'
+                                  : isComparisonSource
+                                  ? 'text-brand bg-brand-50'
                                   : 'text-slate-600 dark:text-slate-300'
                               }`}
                             >
                               {h}
+                              {isComparisonSource && (
+                                <span className="block text-[9px] font-normal">PARITY source</span>
+                              )}
                             </th>
                           );
                         })}
