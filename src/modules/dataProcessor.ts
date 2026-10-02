@@ -19,6 +19,16 @@
  * is skipped in the source (e.g. 37 missing between 36 and 38), it is
  * inserted with a blank description so the exported sequence has no
  * gaps. Existing codes are never renumbered or overwritten.
+ *
+ * OE population always fills 1..max, where max is the biggest numeric
+ * code found (e.g. 999). A trailing standalone NONE option (for example
+ * code 999 / label NONE) IS included in OE sorting and gap-filling, so
+ * the populated OE output runs 1..999 with no gaps.
+ *
+ * The NONE-outside-hierarchy rule applies ONLY to QPS nettings: in the
+ * QPS script, a standalone NONE row is emitted as its own R/Y pair but
+ * is excluded from NET/SUBNET range aggregation and from O R / O E
+ * option boundaries (see qpsScript.ts).
  */
 
 import { RowData, ProcessingStats, LogEntry } from '../types';
@@ -55,35 +65,6 @@ export interface ProcessingResult {
  * @param config - Processing configuration (column keys, exclusions)
  * @returns ProcessingResult containing processed data (without notes) and statistics
  */
-function stripTrailingStandaloneNone(
-  data: RowData[],
-  columnAKey: string,
-  columnBKey: string,
-): { data: RowData[]; removed: number } {
-  if (data.length === 0) return { data, removed: 0 };
-
-  // Walk from the end to the last non-empty record.
-  let idx = data.length - 1;
-  while (idx >= 0) {
-    const code = String(data[idx][columnAKey] ?? '').trim();
-    const label = String(data[idx][columnBKey] ?? '').trim();
-    if (code !== '' || label !== '') break;
-    idx--;
-  }
-
-  if (idx < 0) return { data, removed: 0 };
-
-  const lastLabel = String(data[idx][columnBKey] ?? '').trim().toUpperCase();
-  if (lastLabel === 'NONE') {
-    return {
-      data: data.filter((_, rowIndex) => rowIndex !== idx),
-      removed: 1,
-    };
-  }
-
-  return { data, removed: 0 };
-}
-
 export function processData(
   data: RowData[],
   allHeaders: string[],
@@ -169,16 +150,11 @@ export function processData(
     addLog('info', 'Step 3: No Notes column configured, skipping...');
   }
 
-  // Step 3.5: Exclude a final standalone NONE option from sorting/gap-fill.
-  // Business rule: if the last part of the codeframe is a standalone NONE,
-  // it is not under any NET/SUBNET hierarchy block and must not participate
-  // in the OE sorting sequence.
-  const noneResult = stripTrailingStandaloneNone(processed, config.columnAKey, config.columnBKey);
-  processed = noneResult.data;
-  if (noneResult.removed > 0) {
-    addLog('warning', '✓ Removed trailing standalone NONE from OE sorting sequence');
-  }
-  
+  // Note: a trailing standalone NONE (e.g. code 999) stays IN the OE
+  // sorting/gap-fill sequence so population runs 1..max with no gaps.
+  // NONE is excluded only from QPS net range aggregation and O R / O E
+  // boundaries (see qpsScript.ts), not from OE population.
+
   // Step 4: Sort Data by Column A (numeric)
   addLog('info', 'Step 4: Sorting data by Column A...');
   processed = sortData(processed, config.columnAKey);
@@ -246,9 +222,9 @@ export function processData(
     return outputRow;
   });
   addLog('success', `✓ Notes column stripped — output has ${outputHeaders.length} columns`);
-  
+
   // Calculate stats
-  const totalRemoved = removedCount + notesRemovedCount + noneResult.removed;
+  const totalRemoved = removedCount + notesRemovedCount;
   const stats: ProcessingStats = {
     originalRows: data.length,
     removedRows: totalRemoved,

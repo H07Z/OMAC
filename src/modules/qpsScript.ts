@@ -29,6 +29,12 @@
  *
  * Codes are grouped in ROW ORDER into consecutive-value runs:
  *   3001,3002,…,3016 → "3001..3016";  a gap or out-of-order value closes the run.
+ *
+ * Standalone NONE rule:
+ *   A row whose label is exactly NONE (e.g. code 999 / NONE) is emitted
+ *   as its own R/Y pair, but it is OUTSIDE all nettings: its code is
+ *   never included in any NET/SUBNET range, and no O R / O E boundary
+ *   is ever attached to it.
  */
 
 import * as XLSX from 'xlsx';
@@ -83,6 +89,11 @@ function detectLevel(labelUpper: string): number {
   return 0;
 }
 
+/** A standalone NONE option (exact label match) lives outside all nettings. */
+function isStandaloneNoneLabel(label: unknown): boolean {
+  return String(label ?? '').trim().toUpperCase() === 'NONE';
+}
+
 /** VBA Val(): leading numeric part, blank/non-numeric → 0 */
 function val(v: unknown): number {
   const n = parseFloat(String(v ?? '').trim());
@@ -109,7 +120,18 @@ function buildRangesForMarker(
   let strHold = '';
   const n = rows.length;
 
+  // Trailing NONE rows are invisible to nettings, so the "last row" flush
+  // must trigger on the last non-NONE row instead of the physical last row.
+  let effectiveLast = n - 1;
+  while (effectiveLast >= startIdx && isStandaloneNoneLabel(rows[effectiveLast][labelKey])) {
+    effectiveLast--;
+  }
+
   for (let x = startIdx; x < n; x++) {
+    // Standalone NONE is outside all nettings: never let its code (e.g. 999)
+    // extend, close, or reset any net range.
+    if (isStandaloneNoneLabel(rows[x][labelKey])) continue;
+
     const codeVal = rows[x][codeKey];
     const codeStr = codeVal === null || codeVal === undefined ? '' : String(codeVal).trim();
     const labelUpper = String(rows[x][labelKey] ?? '').toUpperCase();
@@ -125,7 +147,7 @@ function buildRangesForMarker(
     }
 
     const diff = val(codeStr) - val(strHold);
-    const isLast = x === n - 1;
+    const isLast = x === effectiveLast;
 
     if ((diff !== 1 && diff !== 0) || isLast) {
       // Close the current run
@@ -155,8 +177,10 @@ interface OptionBoundary {
 /**
  * Find the first and last code beneath every hierarchy marker.
  * A hierarchy block ends at END or at the next marker of the same or a
- * higher hierarchy level. The QPS output adds O R after the first code and
- * O E after the last code, matching the supplied expected output.
+ * higher hierarchy level. Standalone NONE rows are skipped, so O R / O E
+ * boundaries attach only to real hierarchy codes. The QPS output adds
+ * O R after the first code and O E after the last code, matching the
+ * supplied expected output.
  */
 function buildOptionBoundaries(
   rows: RowData[],
@@ -178,6 +202,9 @@ function buildOptionBoundaries(
     let lastCode = -1;
 
     for (let x = i + 1; x < rows.length; x++) {
+      // Standalone NONE never opens or closes an O R / O E scope.
+      if (isStandaloneNoneLabel(rows[x][labelKey])) continue;
+
       const labelUpper = String(rows[x][labelKey] ?? '').trim().toUpperCase();
       if (labelUpper === 'END') break;
 
@@ -254,7 +281,9 @@ export function generateQpsLines(
       }
       lines.push({ text: `Y ${parts.join('+')}`.trimEnd(), kind: 'net-script' });
     } else if (codeStr !== '') {
-      // Code row → label + single-code script
+      // Code row → label + single-code script. A standalone NONE row is
+      // still emitted here as its own R/Y pair, but (per the boundary
+      // maps above) it never receives O R / O E lines.
       lines.push({ text: `R ${label}`, kind: 'code-label' });
       const parts = questions.map(q => `$${q}/${codeStr}`);
       lines.push({ text: `Y ${parts.join('+')}`.trimEnd(), kind: 'code-script' });
