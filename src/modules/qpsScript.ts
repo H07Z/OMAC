@@ -116,55 +116,53 @@ function buildRangesForMarker(
   stops: string[]
 ): string[] {
   const ranges: string[] = [];
-  let strCodes = '';
-  let strHold = '';
-  const n = rows.length;
+  let runStart = '';
+  let runEnd = '';
+  const flush = () => {
+    if (!runStart) return;
+    ranges.push(runStart === runEnd ? runStart : `${runStart}..${runEnd}`);
+    runStart = '';
+    runEnd = '';
+  };
 
-  // Trailing NONE rows are invisible to nettings, so the "last row" flush
-  // must trigger on the last non-NONE row instead of the physical last row.
-  let effectiveLast = n - 1;
-  while (effectiveLast >= startIdx && isStandaloneNoneLabel(rows[effectiveLast][labelKey])) {
-    effectiveLast--;
-  }
+  // Scan only rows below the marker. A stop row is never treated as data.
+  for (let x = startIdx + 1; x < rows.length; x++) {
+    const labelUpper = String(rows[x][labelKey] ?? '').trim().toUpperCase();
 
-  for (let x = startIdx; x < n; x++) {
-    // Standalone NONE is outside all nettings: never let its code (e.g. 999)
-    // extend, close, or reset any net range.
-    if (isStandaloneNoneLabel(rows[x][labelKey])) continue;
-
-    const codeVal = rows[x][codeKey];
-    const codeStr = codeVal === null || codeVal === undefined ? '' : String(codeVal).trim();
-    const labelUpper = String(rows[x][labelKey] ?? '').toUpperCase();
-
-    // Extend / start the current run
-    if (codeStr !== '') {
-      if (strCodes === '') {
-        strCodes = codeStr;
-        strHold = codeStr;
-      } else if (val(codeStr) - val(strHold) === 1) {
-        strHold = codeStr;
-      }
+    // NONE is an independent option and must not be inside any net range.
+    if (isStandaloneNoneLabel(labelUpper)) {
+      flush();
+      break;
     }
 
-    const diff = val(codeStr) - val(strHold);
-    const isLast = x === effectiveLast;
+    // A same-or-higher marker closes the current hierarchy before it.
+    if (labelUpper === 'END' || stops.some(s => labelUpper.includes(s))) {
+      flush();
+      break;
+    }
 
-    if ((diff !== 1 && diff !== 0) || isLast) {
-      // Close the current run
-      let range = strCodes;
-      if (strCodes !== strHold) range = `${strCodes}..${strHold}`;
-      if (range !== '') ranges.push(range);
+    const codeStr = String(rows[x][codeKey] ?? '').trim();
+    if (!codeStr) continue;
 
-      // Reset run to the current row's code
-      strCodes = codeStr;
-      strHold = codeStr;
+    if (!runStart) {
+      runStart = codeStr;
+      runEnd = codeStr;
+      continue;
+    }
 
-      // Stop when we reach a same-or-higher-level marker (or END)
-      if (labelUpper === 'END' || stops.some(s => labelUpper.includes(s))) {
-        break;
-      }
+    if (val(codeStr) === val(runEnd) + 1) {
+      runEnd = codeStr;
+    } else {
+      // A gap/out-of-order code closes the previous run. The current code
+      // immediately starts the next run and is never discarded.
+      flush();
+      runStart = codeStr;
+      runEnd = codeStr;
     }
   }
+
+  // Flush the final real code before NONE/end-of-sheet.
+  flush();
 
   return ranges;
 }
