@@ -519,6 +519,34 @@ export function appendByTemplate(
   const servedByColumn: Array<Array<number | null>> = [];
   const outputHeaders: string[] = [];
 
+  // ── Shared block lengths (prevents null/empty misalignment) ──
+  // Every mapped source column is a separate block of appended values. A
+  // block must use ONE length for every mapping in it. Previously each column
+  // computed its own lastUsedRow, so a column with trailing blanks became
+  // shorter, shifting every later block and every amendment segment.
+  //
+  // The block length is the last row that has data in ANY mapped column of
+  // that amendment. Missing values inside the block are emitted as null so
+  // rows stay aligned with their respondent/SERVED position.
+  const maxPerMapping: number[] = effectiveMappings.map(mapping => {
+    if (mapping.sourceHeaders.length === 0) return 0;
+    let lastUsed = -1;
+    for (const sourceHeader of mapping.sourceHeaders) {
+      const colIndex = sourceHeaders.findIndex(h => h === sourceHeader);
+      if (colIndex === -1) continue;
+      for (let r = sourceRows.length - 1; r >= 0; r--) {
+        const value = sourceRows[r]?.[colIndex];
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          if (r > lastUsed) lastUsed = r;
+          break;
+        }
+      }
+    }
+    return lastUsed + 1;
+  });
+  const sharedBlockLength = maxPerMapping.reduce((max, length) => Math.max(max, length), 0);
+  log.push(`Shared block length: ${sharedBlockLength} source row(s) per amendment (keeps blank cells aligned)`);
+
   for (let mIdx = 0; mIdx < effectiveMappings.length; mIdx++) {
     const mapping = effectiveMappings[mIdx];
     const normalizedTarget = mapping.targetHeader.trim().toUpperCase();
@@ -559,26 +587,14 @@ export function appendByTemplate(
         continue;
       }
 
-      let lastUsedRow = -1;
-      for (let r = sourceRows.length - 1; r >= 0; r--) {
-        const value = sourceRows[r]?.[sourceColIndex];
-        if (value !== null && value !== undefined && String(value).trim() !== '') {
-          lastUsedRow = r;
-          break;
-        }
-      }
-
-      if (lastUsedRow === -1) {
-        log.push(`  source header found but column is empty: ${sourceHeader}`);
-        continue;
-      }
-
-      for (let r = 0; r <= lastUsedRow; r++) {
+      // Always append the full shared block, preserving nulls so empty source
+      // cells cannot pull later rows out of alignment.
+      for (let r = 0; r < sharedBlockLength; r++) {
         outputValues.push(sourceRows[r]?.[sourceColIndex] ?? null);
         outputServed.push(servedValue);
       }
 
-      log.push(`  appended ${lastUsedRow + 1} value(s) from ${sourceHeader} (SERVED ${servedValue})`);
+      log.push(`  appended ${sharedBlockLength} row slot(s) from ${sourceHeader} (SERVED ${servedValue})`);
     }
 
     outputColumns.push(outputValues);
@@ -666,7 +682,8 @@ export function appendByTemplate(
     const sourceIndex2 = sourceHeaders.findIndex(header => header === parityCol2);
 
     if (sourceIndex1 !== -1 && sourceIndex2 !== -1) {
-      // Determine length of each amendment segment from servedSequence
+      // Amendment segment lengths must match the shared stacking block, not
+      // the trimmed length of whichever column happened to be longest.
       const segmentLengths: number[] = [];
       let currentServed = 1;
       let currentLen = 0;
@@ -685,6 +702,9 @@ export function appendByTemplate(
       }
       if (segmentLengths.length === 0) {
         segmentLengths.push(maxLength);
+      }
+      while (segmentLengths.length < 2) {
+        segmentLengths.push(sharedBlockLength);
       }
 
       const col1Values: CellValue[] = [];
